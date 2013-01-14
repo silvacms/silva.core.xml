@@ -41,26 +41,40 @@ class SilvaProducer(xmlexport.Producer):
         if reference is None:
             return None
         exported = self.getExported()
+        options = self.getOptions()
         root = exported.root
-        if not self.getOptions().external_rendering:
+        if not options.external_rendering:
             if not reference.target_id:
                 # The reference is broken. Return an empty path.
+                exported.reportProblem(
+                    u'Content has a broken reference in the export.',
+                    self.context)
                 return ""
             if not reference.is_target_inside_container(root):
-                raise ExternalReferenceError(
-                    _(u"External references"),
-                    self.context, reference.target, root)
+                if options.external_references:
+                    # The reference is not inside the export, export
+                    # anyway with a broken reference if the option is given.
+                    exported.reportProblem(
+                        u'Content refers to an another content outside of '
+                        u'the export ({0}).'.format(
+                            '/'.join(reference.relative_path_to(root))),
+                        self.context)
+                    return ""
+                else:
+                    raise ExternalReferenceError(
+                        _(u"External references"),
+                        self.context, reference.target, root)
             # Add root path id as it is always mentioned in exports
             return canonical_path('/'.join(
                     [root.getId()] + reference.relative_path_to(root)))
-        else:
-            # Return url to the target
-            return absoluteURL(reference.target, exported.request)
+        # Return url to the target
+        return absoluteURL(reference.target, exported.request)
 
     def get_references(self, name):
         ref_set = ReferenceSet(self.context, name)
         options = self.getOptions()
         exported = self.getExported()
+        have_external = 0
         root = exported.root
         for reference in ref_set.get_references():
             if not options.external_rendering:
@@ -68,15 +82,26 @@ class SilvaProducer(xmlexport.Producer):
                     # The reference is broken. Return an empty path.
                     yield ""
                 if not reference.is_target_inside_container(root):
-                    raise ExternalReferenceError(
-                        u"Reference outside of the export container",
-                        self.context, reference.target, root)
+                    if options.external_references:
+                        have_external += 1
+                        continue
+                    else:
+                        raise ExternalReferenceError(
+                            _(u"External references"),
+                            self.context, reference.target, root)
                 # Add root path id as it is always mentioned in exports
                 path = [root.getId()] + reference.relative_path_to(root)
                 yield canonical_path('/'.join(path))
             else:
                 # Return url to the target
                 yield absoluteURL(reference.target, exported.request)
+        if have_external:
+            # Report the collected problems.
+            exported.reportProblem(
+                (u'Content contains {0} reference(s) pointing outside ' +
+                 u'of the export.').format(
+                    have_external),
+                self.context)
 
     def sax_metadata(self):
         """Export the metadata
@@ -120,20 +145,41 @@ class SilvaVersionedContentProducer(SilvaProducer):
     def sax_workflow(self):
         """Export the XML for the versioning workflow
         """
-        if not self.getOptions().include_workflow:
+        options = self.getOptions()
+        if not options.include_workflow:
             return
+
+        def sax_workflow_all_versions():
+            # Previewable versions.
+            if not options.only_viewable:
+                version = self.context.get_unapproved_version_data()
+                if version[0]:
+                    self.sax_workflow_version(version, 'unapproved')
+                    if options.only_previewable:
+                        return
+                version = self.context.get_approved_version_data()
+                if version[0]:
+                    self.sax_workflow_version(version, 'approved')
+                    if options.only_previewable:
+                        return
+
+            # Public versions
+            version = self.context.get_public_version_data()
+            if version[0]:
+                self.sax_workflow_version(version, 'public')
+                if options.only_previewable:
+                    return
+
+            # Old versions
+            if not options.only_viewable:
+                for version in self.context.get_previous_versions_data():
+                    self.sax_workflow_version(version, 'closed')
+                    if options.only_previewable:
+                        return
+
+
         self.startElement('workflow')
-        version = self.context.get_unapproved_version_data()
-        if version[0]:
-            self.sax_workflow_version(version, 'unapproved')
-        version = self.context.get_approved_version_data()
-        if version[0]:
-            self.sax_workflow_version(version, 'approved')
-        version = self.context.get_public_version_data()
-        if version[0]:
-            self.sax_workflow_version(version, 'public')
-        for version in self.context.get_previous_versions_data():
-            self.sax_workflow_version(version, 'closed')
+        sax_workflow_all_versions()
         self.endElement('workflow')
 
     def sax_workflow_version(self, version, status):
@@ -144,21 +190,21 @@ class SilvaVersionedContentProducer(SilvaProducer):
         id, publication_datetime, expiration_datetime = version
         self.startElement('version', {'id':id})
         self.startElement('status')
-        self.handler.characters(status)
+        self.characters(status)
         self.endElement('status')
         self.startElement('publication_datetime')
         if publication_datetime:
             if isinstance(publication_datetime, DateTime):
-                self.handler.characters(str(publication_datetime.HTML4()))
+                self.characters(str(publication_datetime.HTML4()))
             else:
-                self.handler.characters(unicode(str(publication_datetime)))
+                self.characters(unicode(str(publication_datetime)))
         self.endElement('publication_datetime')
         self.startElement('expiration_datetime')
         if expiration_datetime:
             if isinstance(expiration_datetime, DateTime):
-                self.handler.characters(str(expiration_datetime.HTML4()))
+                self.characters(str(expiration_datetime.HTML4()))
             else:
-                self.handler.characters(unicode(str(expiration_datetime)))
+                self.characters(unicode(str(expiration_datetime)))
         self.endElement('expiration_datetime')
         self.endElement('version')
 
@@ -167,9 +213,9 @@ class SilvaVersionedContentProducer(SilvaProducer):
         """
         options = self.getOptions()
         if options.only_viewable:
-            versions = filter(None, self.context.get_viewable())
+            versions = filter(None, [self.context.get_viewable()])
         elif options.only_previewable:
-            versions = filter(None, self.context.get_previewable())
+            versions = filter(None, [self.context.get_previewable()])
         else:
             versions = IPublicationWorkflow(self.context).get_versions()
         for version in versions:
@@ -231,9 +277,22 @@ class ZexpProducer(SilvaProducer):
 
 class ExporterProducer(xmlexport.BaseProducer):
 
+    def get_relative_path_to(self, content):
+        return canonical_path(
+            "/".join(relative_path(
+                    self.getExported().rootPath,
+                    content.getPhysicalPath())))
+
+
     def sax(self):
         self.startElement(
             'silva',
             {'silva_version': self.context.getVersion()})
         self.subsax(self.context.root)
+        for problem, content in self.getExported().getProblems():
+            self.startElement(
+                'problem',
+                {'path': self.get_relative_path_to(content)})
+            self.characters(problem)
+            self.endElement('problem')
         self.endElement('silva')

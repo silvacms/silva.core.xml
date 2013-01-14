@@ -14,19 +14,6 @@ from silva.core.interfaces import ISilvaXMLHandler, ContentImported
 logger = logging.getLogger('silva.core.xml')
 
 
-def generateUniqueId(original, context):
-    i = 0
-    identifier = original
-    existing = context.objectIds()
-    while identifier in existing:
-        i += 1
-        add = ''
-        if i > 1:
-            add = str(i)
-        identifier = 'import%s_of_%s' % (add, original)
-    return identifier
-
-
 def parse_date(date):
     if date:
         return DateTime(date)
@@ -214,17 +201,31 @@ class SilvaHandler(xmlimport.BaseHandler):
             raise ValueError
         identifier = identifier.encode('utf-8')
         parent = self.parent()
+        existing = parent.objectIds()
         self.setOriginalId(identifier)
         if self.getOptions().replace:
-            if identifier in parent.objectIds():
+            if identifier in existing:
                 parent.manage_delObjects([identifier])
             return identifier
-        return generateUniqueId(identifier, parent)
+        # Find a new id
+        test = 0
+        original = identifier
+        while identifier in existing:
+            test += 1
+            add = ''
+            if test > 1:
+                add = str(test)
+            identifier = 'import%s_of_%s' % (add, original)
+        return identifier
 
 
 class SilvaVersionHandler(SilvaHandler):
 
     def updateVersionCount(self):
+        importer = self.getExtra()
+        importer.addImportedPath(
+            self.getOriginalPhysicalPath(),
+            self.getResultPhysicalPath())
         # The parent of a version is a VersionedContent object. This VC object
         # has an _version_count attribute to keep track of the number of
         # existing version objects and is the used to determine the id for a

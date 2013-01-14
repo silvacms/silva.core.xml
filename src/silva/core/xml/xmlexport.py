@@ -32,7 +32,8 @@ class Exporter(object):
             if self.__executing:
                 raise AssertionError('Currently exporting')
             self.__executing = True
-            self.__string = registry.exportToString(self, self.options)
+            self.__string = registry.exportToString(
+                self, self.options, extra=self)
             self.__executed = True
         return self.__string
 
@@ -40,7 +41,8 @@ class Exporter(object):
         if not self.__executed:
             if self.__executing:
                 raise AssertionError('Currently exporting')
-            self.__stream = registry.exportToTemporary(self, self.options)
+            self.__stream = registry.exportToTemporary(
+                self, self.options, extra=self)
             self.__executed = True
         return self.__stream
 
@@ -115,7 +117,7 @@ registry.registerOption('only_viewable', False)
 registry.registerOption('only_previewable', False)
 # Export workflow information
 registry.registerOption('include_workflow', True)
-registry.registerOption('broken_references', True)
+registry.registerOption('external_references', False)
 
 
 # Shortcuts
