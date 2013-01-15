@@ -8,4 +8,7 @@
   <!-- Load XML grokkers -->
   <grok:grok package=".martiansupport" />
 
+  <!-- Grok other components -->
+  <grok:grok package="." exclude="martiansupport" />
+
 </configure>

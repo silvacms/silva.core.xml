@@ -39,12 +39,19 @@ class Importer(object):
         return None
 
     def reportProblem(self, reason, content):
+        """Report a new problem that happened during the import.
+        """
         self.__problems.append((reason, content))
 
     def getProblems(self):
+        """Return the list of the currently known problems with the
+        import.
+        """
         return list(self.__problems)
 
     def importStream(self, source):
+        """Import the XML provided by the file object source.
+        """
         if not self.__executed:
             if self.__executing:
                 raise AssertionError('Currently importing')

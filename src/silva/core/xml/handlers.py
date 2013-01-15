@@ -2,7 +2,7 @@
 import logging
 
 from five import grok
-from sprout.saxext import xmlimport
+from sprout.saxext.xmlimport import BaseHandler
 from zope.event import notify
 
 from DateTime import DateTime
@@ -46,7 +46,7 @@ class DynamicHandlers(object):
 
 
 
-class SilvaHandler(xmlimport.BaseHandler):
+class SilvaHandler(BaseHandler):
     """Base class to writer an XML importer for a Silva content. It
     provides helpers to set Silva properties and metadatas.
     """
@@ -220,6 +220,7 @@ class SilvaHandler(xmlimport.BaseHandler):
 
 
 class SilvaVersionHandler(SilvaHandler):
+    grok.baseclass()
 
     def updateVersionCount(self):
         importer = self.getExtra()
@@ -243,3 +244,4 @@ class SilvaVersionHandler(SilvaHandler):
             return
         vc = max(parent._version_count, (id + 1))
         parent._version_count = vc
+

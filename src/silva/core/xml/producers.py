@@ -279,10 +279,11 @@ class ExporterProducer(xmlexport.BaseProducer):
 
     def get_relative_path_to(self, content):
         return canonical_path(
-            "/".join(relative_path(
+            "/".join(
+                [self.getExported().root.getId()] +
+                relative_path(
                     self.getExported().rootPath,
                     content.getPhysicalPath())))
-
 
     def sax(self):
         self.startElement(
