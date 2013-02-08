@@ -236,23 +236,25 @@ class SilvaContainerProducer(SilvaProducer):
     def sax_contents(self):
         options = self.getOptions()
         self.startElement('content')
-        default = self.context.get_default()
-        if default is not None:
-            self.startElement('default')
-            self.subsax(default)
-            self.endElement('default')
-        for content in self.context.get_ordered_publishables():
-            if (IPublication.providedBy(content) and
-                not options.include_publications):
-                continue
-            self.subsax(content)
-        for content in self.context.get_non_publishables():
-            self.subsax(content)
-        if options.other_contents:
-            meta_types = meta_types_for_interface(
-                ISilvaXMLExportable, excepts=[IPublishable, INonPublishable])
-            for content in self.context.objectValues(meta_types):
+        if not options.only_container:
+            default = self.context.get_default()
+            if default is not None:
+                self.startElement('default')
+                self.subsax(default)
+                self.endElement('default')
+            for content in self.context.get_ordered_publishables():
+                if (IPublication.providedBy(content) and
+                    not options.include_publications):
+                    continue
                 self.subsax(content)
+            for content in self.context.get_non_publishables():
+                self.subsax(content)
+            if options.other_contents:
+                meta_types = meta_types_for_interface(
+                    ISilvaXMLExportable,
+                    excepts=[IPublishable, INonPublishable])
+                for content in self.context.objectValues(meta_types):
+                    self.subsax(content)
         self.endElement('content')
 
 

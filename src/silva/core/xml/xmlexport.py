@@ -111,6 +111,8 @@ registry.registerOption('external_rendering', False)
 registry.registerOption('include_publications', True)
 # Export other contents
 registry.registerOption('other_contents', True)
+# Export only container (no the container content)
+registry.registerOption('only_container', False)
 # Export only viewable
 registry.registerOption('only_viewable', False)
 # Export only previewable
