@@ -195,18 +195,31 @@ class SilvaHandler(BaseHandler):
     def metadataMultiValue(self):
         return self._metadata_multivalue
 
+    def _createContent(self, identifier, **options):
+        raise NotImplementedError
+
+    def createContent(self, attrs, key='id', namespace=None, options={}):
+        identifier = self.generateIdentifier(attrs, key, namespace)
+        if identifier is None:
+            return self.parent()._getOb(identifier)
+        return self._createContent(identifier, **options)
+
     def generateIdentifier(self, attrs, key='id', namespace=None):
+        options = self.getOptions()
         identifier = attrs.get((namespace, key), None)
         if identifier is None:
-            raise ValueError
+            raise ValueError('Identifier is missing from the attributes')
         identifier = identifier.encode('utf-8')
         parent = self.parent()
         existing = parent.objectIds()
         self.setOriginalId(identifier)
-        if self.getOptions().replace:
+        if options.replace_content:
             if identifier in existing:
                 parent.manage_delObjects([identifier])
             return identifier
+        if options.update_content:
+            if identifier in existing:
+                return None
         # Find a new id
         test = 0
         original = identifier

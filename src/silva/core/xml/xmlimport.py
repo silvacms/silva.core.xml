@@ -141,4 +141,5 @@ class ZipImporter(Importer):
 
 registry = xmlimport.Importer()
 # Replace content
-registry.registerOption('replace', False)
+registry.registerOption('replace_content', False)
+registry.registerOption('update_content', False)
