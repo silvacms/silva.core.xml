@@ -46,7 +46,7 @@ class DynamicHandlers(object):
 
 
 
-class SilvaHandler(BaseHandler):
+class Handler(BaseHandler):
     """Base class to writer an XML importer for a Silva content. It
     provides helpers to set Silva properties and metadatas.
     """
@@ -54,12 +54,9 @@ class SilvaHandler(BaseHandler):
     grok.implements(ISilvaXMLHandler)
 
     def __init__(self, parent, parent_handler, options=None, extra=None):
-        super(SilvaHandler, self).__init__(parent, parent_handler, options, extra)
+        super(Handler, self).__init__(parent, parent_handler, options, extra)
         self.handlerFactories = DynamicHandlers(self)
-        self._metadata_set = None
-        self._metadata_key = None
         self._metadata = {}
-        self._metadata_multivalue = False
         self._workflow = {}
         self.__id_result = None
         self.__id_original = None
@@ -100,26 +97,9 @@ class SilvaHandler(BaseHandler):
         return path
 
     # Metadata helpers
-    def setMetadataKey(self, key):
-        self._metadata_key = key
-
-    def setMetadata(self, set, key, value):
-        if value is not None:
-            value = value.encode('utf-8')
-            if self.metadataMultiValue():
-                if self._metadata[set].has_key(key):
-                    self._metadata[set][key].append(value)
-                else:
-                    self._metadata[set][key] = [value]
-            else:
-                self._metadata[set][key] = value
-
-    def setMetadataSet(self, set):
-        self._metadata_set = set
-        self._metadata[set] = {}
-
-    def setMetadataMultiValue(self, trueOrFalse):
-        self._metadata_multivalue = trueOrFalse
+    def setMetadata(self, key, values):
+        assert isinstance(values, dict)
+        self._metadata[key] = values
 
     def storeMetadata(self):
         content = self.result()
@@ -181,28 +161,21 @@ class SilvaHandler(BaseHandler):
             previous_versions.append(version)
             self.parent()._previous_versions = previous_versions
 
-    # ACCESSORS
-
-    def metadataKey(self):
-        return self._metadata_key
-
-    def metadataSet(self):
-        return self._metadata_set
-
     def getMetadata(self, set, key):
         return self._metadata[set].get(key)
 
-    def metadataMultiValue(self):
-        return self._metadata_multivalue
+
+class SilvaHandler(Handler):
+    grok.baseclass()
 
     def _createContent(self, identifier, **options):
         raise NotImplementedError
 
     def createContent(self, attrs, key='id', namespace=None, options={}):
         identifier = self.generateIdentifier(attrs, key, namespace)
-        if identifier is None:
-            return self.parent()._getOb(identifier)
-        return self._createContent(identifier, **options)
+        if identifier is not None:
+            self._createContent(identifier, **options)
+        return self.setResultId(identifier)
 
     def generateIdentifier(self, attrs, key='id', namespace=None):
         options = self.getOptions()
@@ -232,8 +205,19 @@ class SilvaHandler(BaseHandler):
         return identifier
 
 
-class SilvaVersionHandler(SilvaHandler):
+class SilvaVersionHandler(Handler):
     grok.baseclass()
+
+    def _createVersion(self, identifier, **options):
+        raise NotImplementedError
+
+    def createVersion(self, attrs, key='version_id', namespace=None, options={}):
+        identifier = attrs.get((namespace, key), None)
+        if identifier is None:
+            raise ValueError('Version identifier is missing from the attributes')
+        identifier = identifier.encode('utf-8')
+        self._createVersion(identifier, **options)
+        return self.setResultId(identifier)
 
     def updateVersionCount(self):
         importer = self.getExtra()

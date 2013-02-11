@@ -79,31 +79,47 @@ class VersionHandler(handlers.SilvaHandler):
 
 class MetadataSetHandler(handlers.SilvaHandler):
     grok.name('set')
-    _value = None
+
+    def __init__(self, *args, **kwargs):
+        super(MetadataSetHandler, self).__init__(*args, **kwargs)
+        self._set = None
+        self._key = None
+        self._metadata = {}
+        self._value = None
+        self._multiple = False
 
     def startElementNS(self, name, qname, attrs):
-        parent = self.parentHandler()
         if name == (NS_SILVA_URI, 'set'):
-            parent.setMetadataSet(attrs[(None, 'id')])
+            self._set = attrs[(None, 'id')]
         elif name != (NS_SILVA_URI, 'value'):
-            parent.setMetadataKey(name[1])
+            self._key = name[1]
         else:
-            parent.setMetadataMultiValue(True)
-        self.setResult(None)
+            self._multiple = True
 
     def characters(self, chars):
-        if self.parentHandler().metadataKey() is not None:
-            self._value = chars.strip()
+        if self._key is not None:
+            self._value = chars.strip().encode('utf-8')
 
     def endElementNS(self, name, qname):
-        parent = self.parentHandler()
-        if name != (NS_SILVA_URI, 'set'):
-            if parent.metadataKey() is not None:
-                parent.setMetadata(
-                    parent.metadataSet(),
-                    parent.metadataKey(),
-                    self._value)
-        if name != (NS_SILVA_URI, 'value'):
-            parent.setMetadataKey(None)
-            parent.setMetadataMultiValue(False)
-        self._value = None
+        if name == (NS_SILVA_URI, 'set'):
+            assert self._set is not None
+            if self._metadata:
+                parent = self.parentHandler()
+                parent.setMetadata(self._set, self._metadata)
+        else:
+            assert self._key is not None
+            if name != (NS_SILVA_URI, 'value'):
+                if not self._multiple:
+                    # Single value, we have to set the value.
+                    if self._value:
+                        self._metadata[self._key] = self._value
+                self._key = None
+                self._multiple = False
+            else:
+                # Multi value, we append the value to existing ones.
+                if self._value:
+                    if self._key not in self._metadata:
+                        self._metadata[self._key] = []
+                    self._metadata[self._key].append(self._value)
+            # Clear value
+            self._value = None
