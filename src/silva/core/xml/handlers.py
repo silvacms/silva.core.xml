@@ -9,6 +9,7 @@ from DateTime import DateTime
 
 from silva.core.xml import NS_SILVA_URI
 from silva.core.interfaces import ISilvaXMLHandler, ContentImported
+from silva.core.interfaces import IVersion
 
 
 logger = logging.getLogger('silva.core.xml')
@@ -43,7 +44,6 @@ class DynamicHandlers(object):
                 return factory._handler.setData(name, chars.strip())
 
         return CharacterHandler
-
 
 
 class Handler(BaseHandler):
@@ -171,13 +171,7 @@ class SilvaHandler(Handler):
     def _createContent(self, identifier, **options):
         raise NotImplementedError
 
-    def createContent(self, attrs, key='id', namespace=None, options={}):
-        identifier = self.generateIdentifier(attrs, key, namespace)
-        if identifier is not None:
-            self._createContent(identifier, **options)
-        return self.setResultId(identifier)
-
-    def generateIdentifier(self, attrs, key='id', namespace=None):
+    def _generateIdentifier(self, attrs, key='id', namespace=None):
         options = self.getOptions()
         identifier = attrs.get((namespace, key), None)
         if identifier is None:
@@ -189,10 +183,10 @@ class SilvaHandler(Handler):
         if options.replace_content:
             if identifier in existing:
                 parent.manage_delObjects([identifier])
-            return identifier
+            return (identifier, False)
         if options.update_content:
             if identifier in existing:
-                return None
+                return (identifier, True)
         # Find a new id
         test = 0
         original = identifier
@@ -202,6 +196,18 @@ class SilvaHandler(Handler):
             if test > 1:
                 add = str(test)
             identifier = 'import%s_of_%s' % (add, original)
+        return (identifier, False)
+
+    def createContent(self, attrs, key='id', namespace=None, options={}):
+        identifier, exists = self._generateIdentifier(attrs, key, namespace)
+        if not exists:
+            self._createContent(identifier, **options)
+        # XXX We need to check if the existing object is of the correct type.
+        return self.setResultId(identifier)
+
+    def generateIdentifier(self, attrs, key='id', namespace=None):
+        identifier, exists = self._generateIdentifier(attrs, key, namespace)
+        assert exists is False
         return identifier
 
 
@@ -211,13 +217,27 @@ class SilvaVersionHandler(Handler):
     def _createVersion(self, identifier, **options):
         raise NotImplementedError
 
-    def createVersion(self, attrs, key='version_id', namespace=None, options={}):
+    def createVersion(self, attrs, key='version_id', namespace=None, **opts):
+        options = self.getOptions()
         identifier = attrs.get((namespace, key), None)
         if identifier is None:
-            raise ValueError('Version identifier is missing from the attributes')
+            raise ValueError('Version identifier is missing')
         identifier = identifier.encode('utf-8')
-        self._createVersion(identifier, **options)
-        return self.setResultId(identifier)
+        create = True
+        parent = self.parent()
+        existing = parent.objectIds()
+        self.setOriginalId(identifier)
+        if options.replace_content:
+            if identifier in existing:
+                parent.manage_delObjects([identifier])
+        if options.update_content:
+            if identifier in existing:
+                create = False
+        if create:
+            self._createVersion(identifier, **opts)
+        version = self.setResultId(identifier)
+        assert IVersion.providedBy(version)
+        return version
 
     def updateVersionCount(self):
         importer = self.getExtra()
