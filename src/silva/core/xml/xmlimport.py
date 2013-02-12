@@ -136,7 +136,10 @@ class ZipImporter(Importer):
         """
         if self.__archive is None:
             return None
-        return io.BytesIO(self.__archive.read(filename))
+        try:
+            return io.BytesIO(self.__archive.read(filename))
+        except KeyError:
+            return None
 
 
 registry = xmlimport.Importer()
