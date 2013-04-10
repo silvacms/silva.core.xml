@@ -42,7 +42,7 @@ class SilvaProducer(xmlexport.Producer):
         service = getUtility(IReferenceService)
         reference = service.get_reference(self.context, name=name)
         if reference is None:
-            return ""
+            return None
         exported = self.getExported()
         options = self.getOptions()
         root = exported.root
