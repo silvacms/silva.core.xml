@@ -12,7 +12,7 @@ from silva.core import conf as silvaconf
 class ImporterGrokker(martian.ClassGrokker):
     """Collect importer for contents.
     """
-    martian.component(handlers.SilvaHandler)
+    martian.component(handlers.RegisteredHandler)
     martian.directive(silvaconf.namespace)
     martian.directive(silvaconf.name)
     martian.priority(200)

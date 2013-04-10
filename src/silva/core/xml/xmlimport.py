@@ -149,3 +149,4 @@ registry = xmlimport.Importer()
 # Replace content
 registry.registerOption('replace_content', False)
 registry.registerOption('update_content', False)
+registry.registerOption('ignore_top_level_content', False)

@@ -52,8 +52,11 @@ class SilvaExportRootHandler(handlers.SilvaHandler):
     def getOriginalPhysicalPath(self):
         return []
 
+    def isTopLevelHandler(self):
+        return True
 
-class VersionHandler(handlers.SilvaHandler):
+
+class VersionHandler(handlers.RegisteredHandler):
     """Collect version information.
     """
     grok.name('version')
@@ -73,14 +76,15 @@ class VersionHandler(handlers.SilvaHandler):
             self.setData('id', attrs[(None, 'id')])
 
     def endElementNS(self, name, qname):
-        self.setWorkflowVersion(
+        parent = self.parentHandler()
+        parent.setWorkflowVersion(
             self.getData('id'),
             self.getData('publication_datetime'),
             self.getData('expiration_datetime'),
             self.getData('status'))
 
 
-class MetadataSetHandler(handlers.SilvaHandler):
+class MetadataSetHandler(handlers.RegisteredHandler):
     grok.name('set')
 
     def __init__(self, *args, **kwargs):

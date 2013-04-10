@@ -12,7 +12,7 @@ from DateTime import DateTime
 
 from silva.core.xml import NS_SILVA_URI
 from silva.core.interfaces import ISilvaXMLHandler, ContentImported
-from silva.core.interfaces import IVersion
+from silva.core.interfaces import ISilvaObject, IVersion
 
 
 logger = logging.getLogger('silva.core.xml')
@@ -49,8 +49,18 @@ class DynamicHandlers(object):
         return CharacterHandler
 
 
-class Handler(BaseHandler):
-    """Base class to writer an XML importer for a Silva content. It
+class RegisteredHandler(BaseHandler):
+    """Base class to define an XML importer for a generic tag.
+    """
+    grok.baseclass()
+
+    def __init__(self, parent, parent_handler, options=None, extra=None):
+        super(RegisteredHandler, self).__init__(parent, parent_handler, options, extra)
+        self.handlerFactories = DynamicHandlers(self)
+
+
+class Handler(RegisteredHandler):
+    """Base class to defined an XML importer for a Silva content. It
     provides helpers to set Silva properties and metadatas.
     """
     grok.baseclass()
@@ -58,7 +68,6 @@ class Handler(BaseHandler):
 
     def __init__(self, parent, parent_handler, options=None, extra=None):
         super(Handler, self).__init__(parent, parent_handler, options, extra)
-        self.handlerFactories = DynamicHandlers(self)
         self._metadata = {}
         self._workflow = {}
         self.__id_result = None
@@ -70,11 +79,17 @@ class Handler(BaseHandler):
         """Notify the event system that the content have been
         imported. This must be the last item done.
         """
+        if not self.resultIsImported():
+            # The result was not created here.
+            return
         importer = self.getExtra()
         importer.addAction(notify, [ContentImported(self.result())])
         importer.addImportedPath(
             self.getOriginalPhysicalPath(),
             self.getResultPhysicalPath())
+
+    def resultIsImported(self):
+        return self.__id_result is not None
 
     def setResultId(self, identifier):
         self.__id_result = identifier
@@ -88,7 +103,9 @@ class Handler(BaseHandler):
         if parent is None:
             return []
         path = parent.getResultPhysicalPath()
-        path.append(self.__id_result)
+        trail = self.__id_result
+        if trail is not None:
+            path.append(trail)
         return path
 
     def getOriginalPhysicalPath(self):
@@ -96,15 +113,25 @@ class Handler(BaseHandler):
         if parent is None:
             return []
         path = parent.getOriginalPhysicalPath()
-        path.append(self.__id_original or self.__id_result)
+        trail = self.__id_original or self.__id_result
+        if trail is not None:
+            path.append(trail)
         return path
+
+    def isTopLevelHandler(self):
+        return False
 
     # Metadata helpers
     def setMetadata(self, key, values):
         assert isinstance(values, dict)
         self._metadata[key] = values
 
+    def getMetadata(self, set, key):
+        return self._metadata[set].get(key)
+
     def storeMetadata(self):
+        if not self.resultIsImported():
+            return
         content = self.result()
         metadata_service = content.service_metadata
         binding = metadata_service.getMetadata(content)
@@ -138,34 +165,13 @@ class Handler(BaseHandler):
     # Workflow helpers
     def setWorkflowVersion(
         self, version_id, publication_time, expiration_time, status):
-
-        self.parentHandler()._workflow[version_id.strip()] = (
+        self._workflow[version_id.strip()] = (
             parse_date(publication_time),
             parse_date(expiration_time),
             status)
 
     def getWorkflowVersion(self, version_id):
-        return self.parentHandler()._workflow[version_id]
-
-    def storeWorkflow(self):
-        content = self.result()
-        version_id = content.id
-        publicationtime, expirationtime, status = self.getWorkflowVersion(
-            version_id)
-        version = (version_id, publicationtime, expirationtime)
-        if status == 'unapproved':
-            self.parent()._unapproved_version = version
-        elif status == 'approved':
-            self.parent()._approved_version = version
-        elif status == 'public':
-            self.parent()._public_version = version
-        else:
-            previous_versions = self.parent()._previous_versions or []
-            previous_versions.append(version)
-            self.parent()._previous_versions = previous_versions
-
-    def getMetadata(self, set, key):
-        return self._metadata[set].get(key)
+        return self._workflow[version_id]
 
 
 class SilvaHandler(Handler):
@@ -174,22 +180,31 @@ class SilvaHandler(Handler):
     def _createContent(self, identifier, **options):
         raise NotImplementedError
 
-    def _generateIdentifier(self, attrs, key='id', namespace=None):
-        options = self.getOptions()
+    def _verifyContent(self, content):
+        return ISilvaObject.providedBy(content)
+
+    def _readOriginalIdentifier(self, attrs, key='id', namespace=None):
         identifier = attrs.get((namespace, key), None)
         if identifier is None:
             raise ValueError('Identifier is missing from the attributes')
         identifier = identifier.encode('utf-8')
-        parent = self.parent()
-        existing = parent.objectIds()
         self.setOriginalId(identifier)
+        return identifier
+
+    def _generateIdentifier(self, attrs, key='id', namespace=None):
+        options = self.getOptions()
+        parent = self.parent()
+        identifier = self._readOriginalIdentifier(attrs, key, namespace)
+        existing = parent.objectIds()
         if options.replace_content:
             if identifier in existing:
                 parent.manage_delObjects([identifier])
             return (identifier, False)
         if options.update_content:
             if identifier in existing:
-                return (identifier, True)
+                if self._verifyContent(parent._getOb(identifier)):
+                    # Reuse the content only if it match or create a new one.
+                    return (identifier, True)
         # Find a new id
         test = 0
         original = identifier
@@ -205,13 +220,24 @@ class SilvaHandler(Handler):
         identifier, exists = self._generateIdentifier(attrs, key, namespace)
         if not exists:
             self._createContent(identifier, **options)
-        # XXX We need to check if the existing object is of the correct type.
         return self.setResultId(identifier)
 
     def generateIdentifier(self, attrs, key='id', namespace=None):
         identifier, exists = self._generateIdentifier(attrs, key, namespace)
         assert exists is False
         return identifier
+
+
+class SilvaContainerHandler(SilvaHandler):
+
+    def createContent(self, attrs, key='id', namespace=None, options={}):
+        parent = self.parentHandler()
+        is_top_level = parent.isTopLevelHandler()
+        if self.getOptions().ignore_top_level_content and is_top_level:
+            self._readOriginalIdentifier(attrs, key, namespace)
+            return self.setResult(parent.result())
+        return super(SilvaContainerHandler, self).createContent(
+            attrs, key, namespace, options)
 
 
 class SilvaVersionHandler(Handler):
@@ -242,7 +268,29 @@ class SilvaVersionHandler(Handler):
         assert IVersion.providedBy(version)
         return version
 
+    def storeWorkflow(self):
+        if not self.resultIsImported():
+            return
+        content = self.result()
+        parent = self.parentHandler()
+        version_id = content.id
+        publicationtime, expirationtime, status = parent.getWorkflowVersion(
+            version_id)
+        version = (version_id, publicationtime, expirationtime)
+        if status == 'unapproved':
+            self.parent()._unapproved_version = version
+        elif status == 'approved':
+            self.parent()._approved_version = version
+        elif status == 'public':
+            self.parent()._public_version = version
+        else:
+            previous_versions = self.parent()._previous_versions or []
+            previous_versions.append(version)
+            self.parent()._previous_versions = previous_versions
+
     def updateVersionCount(self):
+        if not self.resultIsImported():
+            return
         importer = self.getExtra()
         importer.addImportedPath(
             self.getOriginalPhysicalPath(),
