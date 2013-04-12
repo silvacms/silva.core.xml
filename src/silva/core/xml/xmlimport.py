@@ -8,6 +8,7 @@ import zipfile
 
 from sprout.saxext import xmlimport
 from sprout.saxext import collapser
+from silva.core.interfaces import Error
 from silva.core.references.utils import canonical_path
 
 
@@ -106,7 +107,10 @@ class Importer(object):
                         imported_path),
                     content)
             else:
-                setter(target)
+                try:
+                    setter(target)
+                except Error as error:
+                    self.reportProblem(error.reason, content)
 
         self.addAction(action)
 
