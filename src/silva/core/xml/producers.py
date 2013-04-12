@@ -31,17 +31,23 @@ class SilvaProducer(xmlexport.Producer):
     grok.implements(ISilvaXMLProducer)
 
     def get_path_to(self, content):
+        """Return the path to the given content, even if the content
+        is outside of the export root folder. If it is outside, the
+        path will be absolute from the Silva root and prefixed with
+        root:.
+        """
         exported = self.getExported()
         content_path = content.getPhysicalPath()
         if is_inside_path(exported.rootPath, content_path):
             return "/".join(canonical_tuple_path(
-                    relative_tuple_path(exported.rootPath, content_path)))
+                    [exported.root.getId()] +  relative_tuple_path(
+                        exported.rootPath, content_path)))
         return "root:" + "/".join(canonical_tuple_path(
                 relative_tuple_path(exported.basePath, content_path)))
 
     def get_reference(self, name):
-        """Return a path to refer an object in the export of a
-        reference tagged name.
+        """Return a path to refer an item that is contained inside the
+        export root folder for a reference tagged name.
         """
         service = getUtility(IReferenceService)
         reference = service.get_reference(self.context, name=name)
@@ -111,7 +117,7 @@ class SilvaProducer(xmlexport.Producer):
                 self.context)
 
     def sax_metadata(self):
-        """Export the metadata
+        """Export the item metadata.
         """
         binding = getUtility(IMetadataService).getMetadata(self.context)
         if binding is None:
@@ -287,10 +293,11 @@ class ZexpProducer(SilvaProducer):
 class ExporterProducer(xmlexport.BaseProducer):
 
     def get_relative_path_to(self, content):
+        exported = self.getExported()
         return '/'.join(canonical_tuple_path(
-                [self.getExported().root.getId()] +
+                [exported.root.getId()] +
                 relative_tuple_path(
-                    self.getExported().rootPath,
+                    exported.rootPath,
                     content.getPhysicalPath())))
 
     def sax(self):
