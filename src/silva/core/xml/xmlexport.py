@@ -61,6 +61,14 @@ class Exporter(object):
         return self.root.getPhysicalPath()
 
     @Lazy
+    def base(self):
+        return self.root.get_root()
+
+    @Lazy
+    def basePath(self):
+        return self.silvaRoot.getPhysicalPath()
+
+    @Lazy
     def request(self):
         return self.__request
 
