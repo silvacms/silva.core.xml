@@ -84,12 +84,15 @@ class Importer(object):
         """Resolve an imported path for a given content.
         """
         if not path:
-            self.reportProblem("Missing path.", content)
+            self.reportProblem("Missing imported path.", content)
             return
 
         def action():
-            imported_path = self.getImportedPath(canonical_path(path))
-            if imported_path is None:
+            if path[0:5] == 'root:':
+                imported_path = path[5:]
+            else:
+                imported_path = self.getImportedPath(canonical_path(path))
+            if not imported_path:
                 self.reportProblem(
                     "Refering inexisting path {0} in the import.".format(path),
                     content)

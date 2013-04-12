@@ -19,7 +19,8 @@ from silva.core.interfaces import ISilvaXMLExportable, ISilvaXMLProducer
 from silva.core.interfaces.errors import ExternalReferenceError
 from silva.core.references.interfaces import IReferenceService
 from silva.core.references.reference import ReferenceSet
-from silva.core.references.utils import canonical_path, relative_path
+from silva.core.references.utils import canonical_tuple_path, relative_tuple_path
+from silva.core.references.utils import is_inside_path
 from silva.core.services.interfaces import IMetadataService
 from silva.translations import translate as _
 from sprout.saxext import xmlexport
@@ -29,11 +30,14 @@ class SilvaProducer(xmlexport.Producer):
     grok.baseclass()
     grok.implements(ISilvaXMLProducer)
 
-    def get_relative_path_to(self, content):
-        origin_path = self.getExported().root.get_root().getPhysicalPath()
-        dest_path = content.getPhysicalPath()
-        rel_path = "/".join(relative_path(origin_path, dest_path))
-        return canonical_path(rel_path)
+    def get_path_to(self, content):
+        exported = self.getExported()
+        content_path = content.getPhysicalPath()
+        if is_inside_path(exported.rootPath, content_path):
+            return "/".join(canonical_tuple_path(
+                    relative_tuple_path(exported.rootPath, content_path)))
+        return "root:" + "/".join(canonical_tuple_path(
+                relative_tuple_path(exported.basePath, content_path)))
 
     def get_reference(self, name):
         """Return a path to refer an object in the export of a
@@ -68,7 +72,7 @@ class SilvaProducer(xmlexport.Producer):
                         _(u"External references"),
                         self.context, reference.target, root)
             # Add root path id as it is always mentioned in exports
-            return canonical_path('/'.join(
+            return '/'.join(canonical_tuple_path(
                     [root.getId()] + reference.relative_path_to(root)))
         # Return url to the target
         return absoluteURL(reference.target, exported.request)
@@ -94,7 +98,7 @@ class SilvaProducer(xmlexport.Producer):
                             self.context, reference.target, root)
                 # Add root path id as it is always mentioned in exports
                 path = [root.getId()] + reference.relative_path_to(root)
-                yield canonical_path('/'.join(path))
+                yield '/'.join(canonical_tuple_path(path))
             else:
                 # Return url to the target
                 yield absoluteURL(reference.target, exported.request)
@@ -283,10 +287,9 @@ class ZexpProducer(SilvaProducer):
 class ExporterProducer(xmlexport.BaseProducer):
 
     def get_relative_path_to(self, content):
-        return canonical_path(
-            "/".join(
+        return '/'.join(canonical_tuple_path(
                 [self.getExported().root.getId()] +
-                relative_path(
+                relative_tuple_path(
                     self.getExported().rootPath,
                     content.getPhysicalPath())))
 
