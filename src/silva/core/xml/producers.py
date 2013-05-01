@@ -158,38 +158,47 @@ class SilvaVersionedContentProducer(SilvaProducer):
     def sax_workflow(self):
         """Export the XML for the versioning workflow
         """
+        # This code is bad mostly because the versioning system is
+        # bad. It should be refactored when the versioning system will
+        # be refactored.
         options = self.getOptions()
         if not options.include_workflow:
             return
 
         def sax_workflow_all_versions():
+            only_viewable = options.only_viewable
+            only_previewable = options.only_previewable
             # Previewable versions.
-            if not options.only_viewable:
+            if not only_viewable:
                 version = self.context.get_unapproved_version_data()
                 if version[0]:
                     self.sax_workflow_version(version, 'unapproved')
-                    if options.only_previewable:
+                    if only_previewable:
                         return
                 version = self.context.get_approved_version_data()
                 if version[0]:
                     self.sax_workflow_version(version, 'approved')
-                    if options.only_previewable:
+                    if only_previewable:
                         return
 
             # Public versions
             version = self.context.get_public_version_data()
             if version[0]:
                 self.sax_workflow_version(version, 'public')
-                if options.only_previewable:
+                if only_previewable:
                     return
 
             # Old versions
-            if not options.only_viewable:
-                for version in self.context.get_previous_versions_data():
-                    self.sax_workflow_version(version, 'closed')
-                    if options.only_previewable:
-                        return
-
+            if only_previewable or not only_viewable:
+                previous_versions = self.context.get_previous_versions_data()
+                if only_previewable:
+                    if previous_versions and previous_versions[-1][0]:
+                        self.sax_workflow_version(
+                            previous_versions[-1], 'closed')
+                    return
+                for version in previous_versions:
+                    if version[0]:
+                        self.sax_workflow_version(version, 'closed')
 
         self.startElement('workflow')
         sax_workflow_all_versions()
