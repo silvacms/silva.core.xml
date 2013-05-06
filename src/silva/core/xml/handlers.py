@@ -171,7 +171,17 @@ class Handler(RegisteredHandler):
             status)
 
     def getWorkflowVersion(self, version_id):
-        return self._workflow[version_id]
+        info = self._workflow.get(version_id)
+        if info is None:
+            # The information is missing, create a problem and return
+            # a closed information.
+            importer = self.getExtra()
+            importer.reportProblem(
+                u'Missing workflow information for version {0}.'.format(
+                    version_id),
+                self.result())
+            return (DateTime() - 1, None, 'closed')
+        return info
 
 
 class SilvaHandler(Handler):
