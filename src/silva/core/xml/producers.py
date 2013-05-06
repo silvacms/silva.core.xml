@@ -240,8 +240,13 @@ class SilvaVersionedContentProducer(SilvaProducer):
             versions = filter(None, [self.context.get_previewable()])
         else:
             versions = IPublicationWorkflow(self.context).get_versions()
-        for version in versions:
-            self.subsax(version)
+        if versions:
+            for version in versions:
+                self.subsax(version)
+        else:
+            exporter = self.getExtra()
+            exporter.reportProblem(
+                u"No versions are exportable for this content.", self.context)
 
     def sax_metadata(self):
         """Versioned Content has no metadata, the metadata is all on the
