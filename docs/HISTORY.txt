@@ -1,10 +1,20 @@
 Changes
 =======
 
-3.0.1 (unreleased)
+3.0.1 (2013/05/23)
 ------------------
 
-* ...
+* Refactor import code defining methods on the correct classes. This
+  removes lot of workflow managing methods they were handled on the
+  wrong class, adding those methods on classes for content who didn't
+  even had a workflow.
+
+* Support for missing workflow and metadata information during import.
+
+* Support for skipping content during import.
+
+* Fix various bugs regarding workflow and metadata import.
+
 
 3.0 (2013/03/06)
 ----------------
