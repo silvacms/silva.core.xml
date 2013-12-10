@@ -11,8 +11,8 @@ You can find more documentation on how to use those components in the
 Code repository
 ===============
 
-You can find the code of this extension in Mercurial:
-https://hg.infrae.com/silva.core.xml
+You can find the code of this extension in Git:
+https://github.com/silvacms/silva.core.xml
 
 
 .. _Developer documentation: http://docs.silvacms.org/latest
